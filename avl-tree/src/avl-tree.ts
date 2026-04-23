@@ -1,7 +1,18 @@
 import { AVLNode } from "./avl-node";
 
+export type ObserverEvent = "visit" | "compare" | "insert" | "delete" | "rotate" | "rebalance";
+
+export interface IObserver<K, V> {
+  onEvent(event: ObserverEvent, node: AVLNode<K, V> | null, ...args: any[]): void;
+}
+
 export class AVLTree<K, V> {
   private root: AVLNode<K, V> | null = null;
+  public observer?: IObserver<K, V>;
+
+  public getRoot(): AVLNode<K, V> | null {
+    return this.root;
+  }
 
   /**
    * Helper: Get node height
@@ -30,6 +41,8 @@ export class AVLTree<K, V> {
   public search(key: K): V | null {
     let curr = this.root;
     while (curr) {
+      this.observer?.onEvent("visit", curr);
+      this.observer?.onEvent("compare", curr, key);
       if (key === curr.key) return curr.value;
       if (key < curr.key) curr = curr.left;
       else curr = curr.right;
@@ -41,6 +54,7 @@ export class AVLTree<K, V> {
    * Right Rotation (LL Case)
    */
   private rotateRight(y: AVLNode<K, V>): AVLNode<K, V> {
+    this.observer?.onEvent("rotate", y, "right");
     const x = y.left!;
     const T2 = x.right;
 
@@ -57,6 +71,7 @@ export class AVLTree<K, V> {
    * Left Rotation (RR Case)
    */
   private rotateLeft(x: AVLNode<K, V>): AVLNode<K, V> {
+    this.observer?.onEvent("rotate", x, "left");
     const y = x.right!;
     const T2 = y.left;
 
@@ -78,7 +93,14 @@ export class AVLTree<K, V> {
 
   private insertRecursive(node: AVLNode<K, V> | null, key: K, value: V): AVLNode<K, V> {
     // 1. Normal BST Insert
-    if (!node) return new AVLNode(key, value);
+    if (!node) {
+      const newNode = new AVLNode(key, value);
+      this.observer?.onEvent("insert", newNode);
+      return newNode;
+    }
+
+    this.observer?.onEvent("visit", node);
+    this.observer?.onEvent("compare", node, key);
 
     if (key < node.key) {
       node.left = this.insertRecursive(node.left, key, value);
@@ -106,12 +128,16 @@ export class AVLTree<K, V> {
   private deleteRecursive(node: AVLNode<K, V> | null, key: K): AVLNode<K, V> | null {
     if (!node) return null;
 
+    this.observer?.onEvent("visit", node);
+    this.observer?.onEvent("compare", node, key);
+
     if (key < node.key) {
       node.left = this.deleteRecursive(node.left, key);
     } else if (key > node.key) {
       node.right = this.deleteRecursive(node.right, key);
     } else {
       // Node to delete found
+      this.observer?.onEvent("delete", node);
       if (!node.left || !node.right) {
         node = node.left || node.right;
       } else {
@@ -133,6 +159,7 @@ export class AVLTree<K, V> {
 
     // Left Heavy
     if (balance > 1) {
+      this.observer?.onEvent("rebalance", node, "left-heavy");
       if (this.getBalance(node.left) < 0) {
         // LR Case
         node.left = this.rotateLeft(node.left!);
@@ -142,6 +169,7 @@ export class AVLTree<K, V> {
 
     // Right Heavy
     if (balance < -1) {
+      this.observer?.onEvent("rebalance", node, "right-heavy");
       if (this.getBalance(node.right) > 0) {
         // RL Case
         node.right = this.rotateRight(node.right!);
